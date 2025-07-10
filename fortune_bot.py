@@ -182,7 +182,7 @@ async def prediction_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 def main():
-    TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # ← Вставь свой токен
+    TOKEN = "7901742836:AAExhlLBU6qEmiR0dmjAVfGlxPkmTT2mvHU"  # ← Вставь свой токен
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
