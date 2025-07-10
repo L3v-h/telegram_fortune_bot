@@ -1,43 +1,39 @@
 import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# 🔮 Список предсказаний
 PREDICTIONS = [
-    "Сегодня твой день — используй его мудро!",
-    "Впереди перемены, не бойся их.",
-    "Ты получишь приятную новость совсем скоро.",
-    "Оглянись — кто-то рядом нуждается в тебе.",
-    "Улыбнись, и удача обязательно заглянет!",
-    "То, что ты ищешь, уже ищет тебя.",
-    "День будет лучше, чем ты думаешь.",
-    "Иногда, чтобы всё изменить, нужно просто начать.",
-    "Скоро ты окажешься там, где должен быть.",
-    "Твоя энергия вдохновляет других — продолжай!"
+    "Today feels like a honey-sweet day ahead!",
+    "The forest whispers: trust your instincts.",
+    "Something unexpected and lovely will find you soon.",
+    "A good nap solves more than you think — try it!",
+    "Even bears get lost — but they always find their way.",
+    "Your path is yours alone. Walk it proudly.",
+    "A cozy moment is coming. Savor it.",
+    "Let go of the worry — it's not your size.",
+    "Someone out there is grateful for you.",
+    "Be kind, even to grumpy squirrels. Especially them."
 ]
 
-# /start команда
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("🔮 Дать предсказание", callback_data="get_fortune")]]
+    keyboard = [[InlineKeyboardButton("🧸 Get a fortune", callback_data="get_fortune")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Привет! Нажми кнопку ниже, чтобы получить предсказание:", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "Hello there, friend! I’m the forest bear of fortune.\nPress the button below to receive a cozy prediction.",
+        reply_markup=reply_markup
+    )
 
-# Обработка кнопки
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     prediction = random.choice(PREDICTIONS)
-    await query.edit_message_text(f"🔮 Твоё предсказание:\n\n{prediction}")
+    await query.edit_message_text(text=f"🧸 Your bear fortune:\n\n{prediction}")
 
-# Запуск бота
 def main():
     TOKEN = "7901742836:AAExhlLBU6qEmiR0dmjAVfGlxPkmTT2mvHU"
-    app = ApplicationBuilder().token(TOKEN).build()
-
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    print("Бот запущен...")
+    app.add_handler(CallbackQueryHandler(button))
     app.run_polling()
 
 if __name__ == "__main__":
