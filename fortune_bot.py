@@ -1,9 +1,19 @@
 import random
-from datetime import datetime, timedelta
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
-# 🔮 Здесь будут предсказания (вставим позже)
+# 🌙 Список предсказаний Лунного Медведя
 PREDICTIONS = ["🌙 Lunar Bear says: Your crypto portfolio will shine under the moonlight tonight.",
     "🌙 Lunar Bear advice: Hold your coins tight, Telegram gifts might surprise you soon!",
     "🌙 The moon guides you to double-check your wallet security today.",
@@ -108,66 +118,51 @@ PREDICTIONS = ["🌙 Lunar Bear says: Your crypto portfolio will shine under the
     "🌙 The moonlight shines on your dedication.",
     "🌙 Remember to rest — even crypto needs balance."]
 
-user_data = {}
-MAX_DAILY_PREDICTIONS = 5
-COOLDOWN_HOURS = 24
+# 🧵 Укажи сюда ID нужной темы в канале (узнаешь через /id)
+ALLOWED_THREAD_ID = -1002195265419  # заменишь после
 
-def can_user_predict(user_id: int) -> (bool, str):
-    now = datetime.utcnow()
-    if user_id not in user_data:
-        return True, ""
-    data = user_data[user_id]
-    first_time = data["first_time"]
-    count = data["count"]
-    if now - first_time > timedelta(hours=COOLDOWN_HOURS):
-        user_data[user_id] = {"count": 0, "first_time": now}
-        return True, ""
-    if count < MAX_DAILY_PREDICTIONS:
-        return True, ""
-    remaining = timedelta(hours=COOLDOWN_HOURS) - (now - first_time)
-    hrs, rem = divmod(remaining.seconds, 3600)
-    mins = rem // 60
-    return False, f"You’ve reached your limit of {MAX_DAILY_PREDICTIONS} predictions today. Try again in {hrs}h {mins}m."
+# ✅ Команда /Prediction
+async def handle_prediction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.message_thread_id != ALLOWED_THREAD_ID:
+        return
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("🌙 Get a lunar bear's prediction", callback_data="get_fortune")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔮 Reveal Prediction", callback_data="get_prediction")
+    ]])
+
     await update.message.reply_text(
-        "🌙 Hello! I am the Lunar Bear, your modern guide to crypto and Telegram gifts.\nPress the button below to receive your fortune.",
-        reply_markup=reply_markup
+        "🌕 The Lunar Bear awaits...\nFor you, a single fortune can be unlocked.\n\nPress the button below to reveal your fate.",
+        reply_markup=keyboard
     )
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# 🔮 Кнопка — выдать предсказание
+async def reveal_prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.from_user.id
     await query.answer()
-
-    allowed, msg = can_user_predict(user_id)
-    if not allowed:
-        await query.edit_message_text(msg)
-        return
-
-    now = datetime.utcnow()
-    if user_id not in user_data:
-        user_data[user_id] = {"count": 1, "first_time": now}
-    else:
-        user_data[user_id]["count"] += 1
-
-    if not PREDICTIONS:
-        await query.edit_message_text("No predictions available yet. Please try again later.")
-        return
 
     prediction = random.choice(PREDICTIONS)
     await query.edit_message_text(
-        f"🌙 Your lunar bear prediction:\n\n{prediction}\n\n🎉 Prediction {user_data[user_id]['count']} of {MAX_DAILY_PREDICTIONS} today."
+        f"🧸 Lunar Bear’s fortune for you:\n\n{prediction}"
     )
 
+# 🆔 Вспомогательная команда /id — узнать thread_id
+async def echo_thread_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    thread_id = update.message.message_thread_id
+    chat_id = update.message.chat_id
+    await update.message.reply_text(
+        f"📌 Thread ID: {thread_id}\n💬 Chat ID: {chat_id}"
+    )
+
+# 🚀 Основной запуск
 def main():
-    TOKEN = "7901742836:AAExhlLBU6qEmiR0dmjAVfGlxPkmTT2mvHU"
+    TOKEN = "7901742836:AAExhlLBU6qEmiR0dmjAVfGlxPkmTT2mvHU"  # ← Вставь сюда свой токен
+
     app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button))
-    print("Lunar Bear bot is running...")
+
+    app.add_handler(CommandHandler("Prediction", handle_prediction_command))
+    app.add_handler(CallbackQueryHandler(reveal_prediction, pattern="^get_prediction$"))
+    app.add_handler(CommandHandler("id", echo_thread_id))  # только для вывода thread_id
+
     app.run_polling()
 
 if __name__ == "__main__":
