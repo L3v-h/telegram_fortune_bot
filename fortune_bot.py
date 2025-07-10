@@ -31,7 +31,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Запуск бота
 def main():
-    TOKEN = "ВСТАВЬ_СЮДА_СВОЙ_ТОКЕН_ИЗ_BOTFATHER"
+    TOKEN = "7901742836:AAExhlLBU6qEmiR0dmjAVfGlxPkmTT2mvHU"
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
