@@ -1,19 +1,10 @@
 import random
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+import json
+from datetime import datetime, timedelta
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import os
 
-# 🌙 Список предсказаний Лунного Медведя
 PREDICTIONS = ["🌙 Lunar Bear says: Your crypto portfolio will shine under the moonlight tonight.",
     "🌙 Lunar Bear advice: Hold your coins tight, Telegram gifts might surprise you soon!",
     "🌙 The moon guides you to double-check your wallet security today.",
@@ -118,51 +109,87 @@ PREDICTIONS = ["🌙 Lunar Bear says: Your crypto portfolio will shine under the
     "🌙 The moonlight shines on your dedication.",
     "🌙 Remember to rest — even crypto needs balance."]
 
-# 🧵 Укажи сюда ID нужной темы в канале (узнаешь через /id)
-ALLOWED_THREAD_ID = -1002195265419  # заменишь после
 
-# ✅ Команда /Prediction
-async def handle_prediction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.message_thread_id != ALLOWED_THREAD_ID:
-        return
+# Максимум одно предсказание в день
+COOLDOWN_HOURS = 24
+USERDATA_FILE = "users.json"
 
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🔮 Reveal Prediction", callback_data="get_prediction")
-    ]])
+# Загружаем user_data из файла
+def load_user_data():
+    if os.path.exists(USERDATA_FILE):
+        with open(USERDATA_FILE, "r") as f:
+            return json.load(f)
+    return {}
 
+# Сохраняем user_data в файл
+def save_user_data(data):
+    with open(USERDATA_FILE, "w") as f:
+        json.dump(data, f)
+
+user_data = load_user_data()
+
+def can_user_predict(user_id: str):
+    now = datetime.utcnow()
+    data = user_data.get(user_id)
+
+    if not data:
+        return True, ""
+
+    last_time = datetime.fromisoformat(data["last_time"])
+    if now - last_time > timedelta(hours=COOLDOWN_HOURS):
+        return True, ""
+    remaining = timedelta(hours=COOLDOWN_HOURS) - (now - last_time)
+    hrs, rem = divmod(remaining.seconds, 3600)
+    mins = rem // 60
+    return False, f"🌙 You’ve already received your prediction. Try again in {hrs}h {mins}m."
+
+# Команда /start или переход из канала
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[InlineKeyboardButton("🌙 Get Lunar Bear's Prediction", callback_data="get_fortune")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🌕 The Lunar Bear awaits...\nFor you, a single fortune can be unlocked.\n\nPress the button below to reveal your fate.",
-        reply_markup=keyboard
+        "🌙 I am the Lunar Bear.\nPress the button below to receive your crypto & Telegram gift prediction.",
+        reply_markup=reply_markup
     )
 
-# 🔮 Кнопка — выдать предсказание
-async def reveal_prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Обработка кнопки
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = str(query.from_user.id)
     await query.answer()
+
+    allowed, msg = can_user_predict(user_id)
+    if not allowed:
+        await query.edit_message_text(msg)
+        return
+
+    # Обновляем время предсказания
+    user_data[user_id] = {"last_time": datetime.utcnow().isoformat()}
+    save_user_data(user_data)
 
     prediction = random.choice(PREDICTIONS)
     await query.edit_message_text(
-        f"🧸 Lunar Bear’s fortune for you:\n\n{prediction}"
+        f"🌙 Your prediction:\n\n{prediction}\n\nCome back tomorrow for another one!"
     )
 
-# 🆔 Вспомогательная команда /id — узнать thread_id
-async def echo_thread_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    thread_id = update.message.message_thread_id
-    chat_id = update.message.chat_id
+# Команда /Prediction — в канале
+async def prediction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[InlineKeyboardButton("🌙 Get your prediction", url=f"https://t.me/{context.bot.username}?start=prediction")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        f"📌 Thread ID: {thread_id}\n💬 Chat ID: {chat_id}"
+        "🌙 Click the button below to receive a prediction from the Lunar Bear:",
+        reply_markup=reply_markup
     )
 
-# 🚀 Основной запуск
 def main():
-    TOKEN = "7901742836:AAExhlLBU6qEmiR0dmjAVfGlxPkmTT2mvHU"  # ← Вставь сюда свой токен
-
+    TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # ← Вставь свой токен
     app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("Prediction", handle_prediction_command))
-    app.add_handler(CallbackQueryHandler(reveal_prediction, pattern="^get_prediction$"))
-    app.add_handler(CommandHandler("id", echo_thread_id))  # только для вывода thread_id
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("Prediction", prediction_command))
+    app.add_handler(CallbackQueryHandler(button))
 
+    print("🌙 Lunar Bear is running...")
     app.run_polling()
 
 if __name__ == "__main__":
