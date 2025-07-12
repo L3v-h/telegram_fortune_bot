@@ -3,18 +3,8 @@ import json
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from PIL import Image, ImageDraw, ImageFont
 import os
 
-# Путь к файлам
-USERDATA_FILE = "users.json"
-FONT_PATH = "fonts/MoonBearFont.ttf"
-BASE_IMAGE_PATH = "base_image.png"
-
-# Ограничения
-COOLDOWN_HOURS = 24
-
-# Предсказания
 PREDICTIONS = ["🌙 Lunar Bear says: Your crypto portfolio will shine under the moonlight tonight.",
     "🌙 Lunar Bear advice: Hold your coins tight, Telegram gifts might surprise you soon!",
     "🌙 The moon guides you to double-check your wallet security today.",
@@ -118,26 +108,31 @@ PREDICTIONS = ["🌙 Lunar Bear says: Your crypto portfolio will shine under the
     "🌙 Lunar Bear sees promising trends in your future.",
     "🌙 The moonlight shines on your dedication.",
     "🌙 Remember to rest — even crypto needs balance."]
+# Максимум одно предсказание в день
+COOLDOWN_HOURS = 24
+USERDATA_FILE = "users.json"
 
-# Загрузка/сохранение юзер-данных
+# Загружаем user_data из файла
 def load_user_data():
     if os.path.exists(USERDATA_FILE):
         with open(USERDATA_FILE, "r") as f:
             return json.load(f)
     return {}
 
+# Сохраняем user_data в файл
 def save_user_data(data):
     with open(USERDATA_FILE, "w") as f:
         json.dump(data, f)
 
 user_data = load_user_data()
 
-# Проверка на кулдаун
 def can_user_predict(user_id: str):
     now = datetime.utcnow()
     data = user_data.get(user_id)
+
     if not data:
         return True, ""
+
     last_time = datetime.fromisoformat(data["last_time"])
     if now - last_time > timedelta(hours=COOLDOWN_HOURS):
         return True, ""
@@ -146,45 +141,16 @@ def can_user_predict(user_id: str):
     mins = rem // 60
     return False, f"🌙 You’ve already received your prediction. Try again in {hrs}h {mins}m."
 
-# Генерация изображения с текстом предсказания
-def generate_prediction_image(prediction_text: str) -> str:
-    base = Image.open(BASE_IMAGE_PATH).convert("RGBA")
-    draw = ImageDraw.Draw(base)
-    font = ImageFont.truetype(FONT_PATH, size=32)
-    text_position = (100, 100)
-    max_width = 700
-
-    lines = []
-    words = prediction_text.split()
-    line = ""
-    for word in words:
-        test_line = f"{line} {word}".strip()
-        if draw.textlength(test_line, font=font) <= max_width:
-            line = test_line
-        else:
-            lines.append(line)
-            line = word
-    lines.append(line)
-
-    y = text_position[1]
-    for line in lines:
-        draw.text((text_position[0], y), line, font=font, fill="black")
-        y += 42
-
-    output_path = "prediction_output.png"
-    base.save(output_path)
-    return output_path
-
-# /start
+# Команда /start или переход из канала
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🌙 Get Lunar Bear's Prediction", callback_data="get_fortune")]]
-    markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         "🌙 I am the Lunar Bear.\nPress the button below to receive your crypto & Telegram gift prediction.",
-        reply_markup=markup
+        reply_markup=reply_markup
     )
 
-# Кнопка
+# Обработка кнопки
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = str(query.from_user.id)
@@ -195,38 +161,41 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(msg)
         return
 
+    # Обновляем время предсказания
     user_data[user_id] = {"last_time": datetime.utcnow().isoformat()}
     save_user_data(user_data)
 
     prediction = random.choice(PREDICTIONS)
-    image_path = generate_prediction_image(prediction)
+    await query.edit_message_text(
+        f"🌙 Your prediction:\n\n{prediction}\n\nCome back tomorrow for another one!"
+    )
 
-    await query.edit_message_text("🌙 Your image prediction has arrived!")
-    await context.bot.send_photo(chat_id=query.message.chat_id, photo=open(image_path, "rb"))
-
-# /Prediction
+# Команда /Prediction — в канале
 async def prediction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
+
     allowed, msg = can_user_predict(user_id)
     if not allowed:
         await update.message.reply_text(msg)
         return
 
+    # Обновляем дату предсказания
     user_data[user_id] = {"last_time": datetime.utcnow().isoformat()}
     save_user_data(user_data)
 
     prediction = random.choice(PREDICTIONS)
-    image_path = generate_prediction_image(prediction)
+    await update.message.reply_text(
+        f"🌙 Your Lunar Bear prediction:\n\n{prediction}\n\n🕒 Come back tomorrow for another one!"
+    )
 
-    await update.message.reply_photo(photo=open(image_path, "rb"), caption="🌙 Your Lunar Bear prediction")
-
-# Старт
 def main():
-    TOKEN = "YOUR_TOKEN_HERE"  # ← Вставь свой токен
+    TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # ← Вставь свой токен
     app = Application.builder().token(TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("Prediction", prediction_command))
     app.add_handler(CallbackQueryHandler(button))
+
     print("🌙 Lunar Bear is running...")
     app.run_polling()
 
