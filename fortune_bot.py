@@ -174,12 +174,22 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Команда /Prediction — в канале
 async def prediction_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("🌙 Get your prediction", url=f"https://t.me/{context.bot.username}?start=prediction")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    user_id = str(update.effective_user.id)
+
+    allowed, msg = can_user_predict(user_id)
+    if not allowed:
+        await update.message.reply_text(msg)
+        return
+
+    # Обновляем дату предсказания
+    user_data[user_id] = {"last_time": datetime.utcnow().isoformat()}
+    save_user_data(user_data)
+
+    prediction = random.choice(PREDICTIONS)
     await update.message.reply_text(
-        "🌙 Click the button below to receive a prediction from the Lunar Bear:",
-        reply_markup=reply_markup
+        f"🌙 Your Lunar Bear prediction:\n\n{prediction}\n\n🕒 Come back tomorrow for another one!"
     )
+
 
 def main():
     TOKEN = "7901742836:AAExhlLBU6qEmiR0dmjAVfGlxPkmTT2mvHU"  # ← Вставь свой токен
